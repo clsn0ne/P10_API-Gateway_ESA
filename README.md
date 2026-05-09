@@ -30,8 +30,7 @@ Pola **Saga** diimplementasikan oleh `loan-core` untuk mengoordinasikan langkahâ
 
 ### Langkah 1 â€“ Clone dan konfigurasi
 ```bash
-git clone https://github.com/muhammadfajri-tif/esa-loan-microservices.git
-cd esa-loan-microservices
+git clone https://github.com/clsn0ne/P10_API-Gateway_ESA.git
 cp .env.example .env
 ```
 
@@ -75,7 +74,6 @@ Mengembalikan objek lengkap pengajuan (status `APPROVED`/`REJECTED`/`ERROR`).
 ```http
 DELETE http://localhost:3000/api/loans/APP001
 ```
-Mengembalikan `204 No Content` jika berhasil, `404` jika ID tidak ditemukan.
 
 ---
 
