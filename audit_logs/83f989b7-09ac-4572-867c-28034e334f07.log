@@ -1,0 +1,1 @@
+{"applicationId":"83f989b7-09ac-4572-867c-28034e334f07","eventName":"loan.cancelled","payload":{"applicationId":"83f989b7-09ac-4572-867c-28034e334f07","userId":"good-user","score":261,"decision":"FAIL","checkedAt":"2026-05-08T11:47:32.396Z"},"recordedAt":"2026-05-08T11:47:32.681Z"}

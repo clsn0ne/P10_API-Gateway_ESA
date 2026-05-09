@@ -1,0 +1,1 @@
+{"applicationId":"a2940dac-44d7-4fba-ac8a-6b816b3fb6ab","eventName":"loan.cancelled","payload":{"applicationId":"a2940dac-44d7-4fba-ac8a-6b816b3fb6ab","userId":"good-user","score":100,"decision":"FAIL","checkedAt":"2026-05-08T07:12:01.180Z"},"recordedAt":"2026-05-08T07:12:01.409Z"}
