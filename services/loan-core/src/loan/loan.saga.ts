@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, NotFoundException } from '@nestjs/common';
 import { createKafkaClient }  from '../common/kafka.provider';
 import { v4 as uuid } from 'uuid';
 import type { Producer, Consumer } from 'kafkajs';
@@ -10,6 +10,7 @@ export class LoanSaga implements OnModuleInit, OnModuleDestroy {
   private kafkaProducer!: Producer;
   private kafkaConsumer!: Consumer;
   private pendingRequests = new Map<string, { resolve: Function; reject: Function; timer: NodeJS.Timeout }>();
+  private completedLoans = new Map<string, any>();
 
   async onModuleInit() {
     const kafka = createKafkaClient([this.kafkaBroker]);
@@ -92,7 +93,10 @@ export class LoanSaga implements OnModuleInit, OnModuleDestroy {
           topic: 'audit.logged',
           messages: [{ key: applicationId, value: JSON.stringify({ applicationId, eventName: 'loan.cancelled', payload: kyc, recordedAt: new Date().toISOString() }) }],
         });
-        return { applicationId, status: 'REJECTED', reason: 'KYC_FAILED' };
+        // Simpan hasil
+        const result = { applicationId, status: 'REJECTED', reason: 'KYC_FAILED' };
+        this.completedLoans.set(applicationId, result);
+        return result;
       }
 
       // Wait Credit
@@ -108,14 +112,16 @@ export class LoanSaga implements OnModuleInit, OnModuleDestroy {
           topic: 'audit.logged',
           messages: [{ key: applicationId, value: JSON.stringify({ applicationId, eventName: 'loan.cancelled', payload: credit, recordedAt: new Date().toISOString() }) }],
         });
-        return { applicationId, status: 'REJECTED', reason: 'CREDIT_FAIL' };
+        const result = { applicationId, status: 'REJECTED', reason: 'CREDIT_FAIL' };
+        this.completedLoans.set(applicationId, result);
+        return result;
       }
 
       // Wait Risk
       const risk = await this.waitForEvent('risk.checked', applicationId, 20000);
       this.logger.log(`Risk result for ${applicationId}: ${risk.risk}`);
 
-      // Wait Blacklist (this one may result in blacklisted = true)
+      // Wait Blacklist
       const blacklist = await this.waitForEvent('blacklist.checked', applicationId, 20000);
       this.logger.log(`Blacklist result for ${applicationId}: blacklisted=${blacklist.blacklisted}`);
 
@@ -133,7 +139,9 @@ export class LoanSaga implements OnModuleInit, OnModuleDestroy {
           messages: [{ key: applicationId, value: JSON.stringify({ applicationId, rolledBackAt: new Date().toISOString() }) }],
         });
 
-        return { applicationId, status: 'REJECTED', reason: 'BLACKLISTED' };
+        const result = { applicationId, status: 'REJECTED', reason: 'BLACKLISTED' };
+        this.completedLoans.set(applicationId, result);
+        return result;
       }
 
       // If all passed
@@ -146,10 +154,11 @@ export class LoanSaga implements OnModuleInit, OnModuleDestroy {
         messages: [{ key: applicationId, value: JSON.stringify({ applicationId, eventName: 'loan.approved', payload: {}, recordedAt: new Date().toISOString() }) }],
       });
 
-      return { applicationId, status: 'APPROVED' };
+      const result = { applicationId, status: 'APPROVED' };
+      this.completedLoans.set(applicationId, result);
+      return result;
     } catch (err: any) {
       this.logger.error(`Saga error for ${applicationId}: ${err.message || err}`);
-      // best-effort compensation
       await this.kafkaProducer.send({
         topic: 'loan.cancelled',
         messages: [{ key: applicationId, value: JSON.stringify({ applicationId, reason: 'SAGA_ERROR', cancelledAt: new Date().toISOString(), error: String(err) }) }],
@@ -158,7 +167,25 @@ export class LoanSaga implements OnModuleInit, OnModuleDestroy {
         topic: 'audit.logged',
         messages: [{ key: applicationId, value: JSON.stringify({ applicationId, eventName: 'saga.error', payload: String(err), recordedAt: new Date().toISOString() }) }],
       });
-      return { applicationId, status: 'ERROR', message: String(err) };
+      const result = { applicationId, status: 'ERROR', message: String(err) };
+      this.completedLoans.set(applicationId, result);
+      return result;
     }
+  }
+
+  getLoan(applicationId: string) {
+    const loan = this.completedLoans.get(applicationId);
+    if (!loan) {
+      throw new NotFoundException(`Loan with ID ${applicationId} not found`);
+    }
+    return loan;
+  }
+
+  deleteLoan(applicationId: string): void {
+    const exists = this.completedLoans.has(applicationId);
+    if (!exists) {
+      throw new NotFoundException(`Loan with ID ${applicationId} not found`);
+    }
+    this.completedLoans.delete(applicationId);
   }
 }
