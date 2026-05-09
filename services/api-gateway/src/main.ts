@@ -124,6 +124,43 @@ app.get('/api/audit/:id', async (req, res) => {
   }
 });
 
+// ============================== //
+// GET LOAN DETAILS               //
+// ============================== //
+app.get('/api/loans/:id', async (req: Request, res: Response) => {
+  const target = getLoanService();
+  try {
+    const r = await axios.get(
+      `${target}/loans/${encodeURIComponent(req.params.id)}`,
+      { timeout: 5000 }
+    );
+    res.json(r.data);
+  } catch (err: any) {
+    if (err.response?.status === 404) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============================== //
+// DELETE LOAN                    //
+// ============================== //
+app.delete('/api/loans/:id', async (req: Request, res: Response) => {
+  const target = getLoanService();
+  try {
+    const response = await axios.delete(`${target}/loans/${req.params.id}`, {
+      timeout: 5000,
+    });
+    res.status(response.status).send();
+  } catch (err: any) {
+    if (err.response?.status === 404) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // ==============================
 // START SERVER
 // ==============================
